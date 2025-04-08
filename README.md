@@ -1,6 +1,6 @@
 # Modulation Visualizer
 
-Site live at [signallabs.netlify.io](https://signallabs.netlify.io)
+Site live at [signallabs.netlify.app](https://signallabs.netlify.app)
 
 An interactive web application for visualizing and
 understanding different modulation techniques in communication systems.
