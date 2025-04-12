@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import AMModulation from "./pages/analog/AMModulation";
@@ -9,7 +9,7 @@ import "./App.css";
 
 function App() {
 	return (
-		<Router>
+		<>
 			<Navbar />
 			<div className="bg-white min-h-screen py-8 px-4">
 				<Routes>
@@ -19,7 +19,7 @@ function App() {
 					<Route path="/pm" element={<PMModulation />} />
 				</Routes>
 			</div>
-		</Router>
+		</>
 	);
 }
 
