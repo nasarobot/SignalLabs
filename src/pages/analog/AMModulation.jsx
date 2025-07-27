@@ -1,5 +1,5 @@
 // AMModulation.jsx
-import React from "react";
+import React, { useState } from "react";
 import { InlineMath, BlockMath } from "react-katex";
 import Plot from "react-plotly.js";
 import { computeAMModulation } from "../../lib/ammodulation";
@@ -7,22 +7,35 @@ import { computeAMDemodulation } from "../../lib/amdemodulation";
 import { computeFFT } from "../../lib/computeFFT";
 
 const AMModulation = () => {
+	// Interactive state parameters
+	const [Am, setAm] = useState(0.8);
+	const [Ac, setAc] = useState(1.0);
+	const [messageType, setMessageType] = useState("sine");
+	const [fc, setFc] = useState(10000); // Add carrier frequency control
+	const [fm, setFm] = useState(500); // Add message frequency control
+	const [fftSize, setFftSize] = useState(8192);
+	const [filterCutoff, setFilterCutoff] = useState(1.5); // Multiplier of fm (1.5 * fm)
+	const [filterOrder, setFilterOrder] = useState(3);
+
+	// Fixed parameters
 	const fs = 500000;
 	const duration = 0.02;
-	const fc = 10000;
-	const fm = 500;
-	const modulationIndex = 0.8;
+
+	// Calculate modulation index
+	const modulationIndex = Am / Ac;
 
 	const { t, message, modulated } = computeAMModulation(
 		fs,
 		duration,
 		fc,
 		fm,
-		modulationIndex
+		Am,
+		Ac,
+		messageType
 	);
-	const fftsize = 8192;
-	const { frequencies, magnitudes } = computeFFT(modulated, fs, fftsize);
-	const demodulated = computeAMDemodulation(modulated, fs, fc, fm);
+	// const fftsize = 8192;
+	const { frequencies, magnitudes } = computeFFT(modulated, fs, fftSize);
+	const demodulated = computeAMDemodulation(modulated, fs, fc, fm, filterCutoff, filterOrder);
 
 	return (
 		<div className="p-4 max-w-6xl mx-auto">
@@ -48,32 +61,204 @@ const AMModulation = () => {
 						The AM modulated signal <InlineMath math="s_{AM}(t)" />{" "}
 						is expressed as:
 					</p>
-					<BlockMath math="s_{AM}(t) = A_c [1 + \mu \cdot m(t)] \cos(2\pi f_c t)" />
+					<BlockMath math="s_{AM}(t) = (A_c + A_m \cdot m(t)) \sin(2\pi f_c t)" />
 
 					<p className="mb-2">
-						In our implementation, we use a sinusoidal message
-						signal <InlineMath math="m(t) = \sin(2\pi f_m t)" />{" "}
-						with:
+						Which can also be written in the standard form:
+					</p>
+					<BlockMath math="s_{AM}(t) = A_c [1 + \mu \cdot m(t)] \sin(2\pi f_c t)" />
+
+					<p className="mb-2">
+						Where <InlineMath math="\mu = \frac{A_m}{A_c}" /> is the
+						modulation index.
+					</p>
+
+					<p className="mb-2">
+						In our implementation, we use a {messageType} message
+						signal with:
 					</p>
 					<ul className="list-disc pl-6 mb-2">
 						<li>
+							Carrier amplitude{" "}
+							<InlineMath math={`A_c = ${Ac}`} />
+						</li>
+						<li>
 							Carrier frequency{" "}
-							<InlineMath math="f_c = 10,000 Hz" />
+							<InlineMath
+								math={`f_c = ${(fc / 1000).toFixed(1)} kHz`}
+							/>
 						</li>
 						<li>
-							Message frequency <InlineMath math="f_m = 500 Hz" />
+							Message amplitude{" "}
+							<InlineMath math={`A_m = ${Am}`} />
 						</li>
 						<li>
-							Modulation index <InlineMath math="\mu = 0.8" />
+							Message frequency{" "}
+							<InlineMath math={`f_m = ${fm} Hz`} />
+						</li>
+						<li>
+							Modulation index{" "}
+							<InlineMath
+								math={`\\mu = ${modulationIndex.toFixed(2)}`}
+							/>
 						</li>
 					</ul>
 
 					<p className="mb-2">
-						The modulation index <InlineMath math="\mu" /> must be
-						between 0 and 1 to prevent overmodulation, which causes
-						distortion.
+						For distortion-free demodulation, the modulation index{" "}
+						<InlineMath math="\mu" /> should be ≤ 1 to prevent
+						overmodulation.
 					</p>
 				</div>
+			</section>
+
+			{/* Interactive Controls - Compact Layout */}
+			<section className="mb-6 bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
+				<h2 className="text-xl font-bold mb-3 text-indigo-600">
+					AM Modulation Parameters
+				</h2>
+
+				<div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+					{/* Message Amplitude */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							Am: {Am.toFixed(1)}
+						</label>
+						<input
+							type="range"
+							min="0.1"
+							max="2.0"
+							step="0.1"
+							value={Am}
+							onChange={e => setAm(parseFloat(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+
+					{/* Carrier Amplitude */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							Ac: {Ac.toFixed(1)}
+						</label>
+						<input
+							type="range"
+							min="0.5"
+							max="2.0"
+							step="0.1"
+							value={Ac}
+							onChange={e => setAc(parseFloat(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+
+					{/* Carrier Frequency */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							fc: {(fc / 1000).toFixed(1)}kHz
+						</label>
+						<input
+							type="range"
+							min="5000"
+							max="20000"
+							step="500"
+							value={fc}
+							onChange={e => setFc(parseInt(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+
+					{/* Message Frequency */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							fm: {fm}Hz
+						</label>
+						<input
+							type="range"
+							min="100"
+							max="1000"
+							step="50"
+							value={fm}
+							onChange={e => setFm(parseInt(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+
+					{/* Message Type */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							Signal Type
+						</label>
+						<select
+							value={messageType}
+							onChange={e => setMessageType(e.target.value)}
+							className="w-full p-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+							<option value="sine">Sine</option>
+							<option value="triangle">Triangle</option>
+							<option value="square">Square</option>
+						</select>
+					</div>
+					{/* FFT Size */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							FFT Size
+						</label>
+						<select
+							value={fftSize}
+							onChange={e => setFftSize(parseInt(e.target.value))}
+							className="w-full p-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+							<option value={1024}>1024</option>
+							<option value={2048}>2048</option>
+							<option value={4096}>4096</option>
+							<option value={8192}>8192</option>
+							<option value={16384}>16384</option>
+						</select>
+					</div>
+				</div>
+
+				{/* Calculated Values - Horizontal Layout */}
+				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+					<div className="flex items-center justify-between p-2 bg-white rounded text-xs">
+						<span className="font-medium">μ:</span>
+						<span className="font-bold">
+							{modulationIndex.toFixed(2)}
+						</span>
+					</div>
+					<div className="flex items-center justify-between p-2 bg-white rounded text-xs">
+						<span className="font-medium">Status:</span>
+						<span
+							className={`font-bold ${
+								modulationIndex > 1
+									? "text-red-600"
+									: "text-green-600"
+							}`}>
+							{modulationIndex > 1 ? "Over" : "Normal"}
+						</span>
+					</div>
+					<div className="flex items-center justify-between p-2 bg-white rounded text-xs">
+						<span className="font-medium">BW:</span>
+						<span className="font-bold">{2 * fm}Hz</span>
+					</div>
+					<div className="flex items-center justify-between p-2 bg-white rounded text-xs">
+						<span className="font-medium">η:</span>
+						<span className="font-bold">
+							{(
+								(Math.pow(modulationIndex, 2) /
+									(2 + Math.pow(modulationIndex, 2))) *
+								100
+							).toFixed(1)}
+							%
+						</span>
+					</div>
+				</div>
+
+				{modulationIndex > 1 && (
+					<div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+						<p className="text-red-700">
+							<strong>Warning:</strong> Overmodulation detected.
+							Reduce Am or increase Ac.
+						</p>
+					</div>
+				)}
 			</section>
 
 			{/* AM Modulation Plot */}
@@ -104,7 +289,11 @@ const AMModulation = () => {
 					layout={{
 						width: 1000,
 						height: 400,
-						title: "AM Modulation - Time Domain",
+						title: `AM Modulation - Time Domain (fc=${(
+							fc / 1000
+						).toFixed(
+							1
+						)}kHz, fm=${fm}Hz, μ=${modulationIndex.toFixed(2)})`,
 						paper_bgcolor: "#f9fafb",
 						plot_bgcolor: "#f9fafb",
 						xaxis: { title: "Time (s)" },
@@ -118,6 +307,14 @@ const AMModulation = () => {
 						of the red AM signal varies in proportion to the blue
 						message signal. The envelope of the AM signal follows
 						the shape of the message signal.
+						{modulationIndex > 1 && (
+							<span className="text-red-600">
+								{" "}
+								With overmodulation (μ `{">"}` 1), you can see
+								envelope distortion where the signal touches
+								zero.
+							</span>
+						)}
 					</p>
 				</div>
 
@@ -143,7 +340,7 @@ const AMModulation = () => {
 						plot_bgcolor: "#f9fafb",
 						xaxis: {
 							title: "Frequency (Hz)",
-							range: [0, 2*fc],
+							range: [0, Math.min(2 * fc, 50000)],
 						},
 						yaxis: {
 							title: "Magnitude",
@@ -155,10 +352,10 @@ const AMModulation = () => {
 				<div className="mt-4 bg-purple-50 p-4 rounded-lg">
 					<p>
 						<strong>Observation:</strong> The frequency spectrum
-						shows the carrier frequency at 10,000 Hz and two
-						sidebands at fc-fm (9,500 Hz) and fc+fm (10,500 Hz).
-						This is characteristic of AM modulation, where the
-						bandwidth is twice the message frequency.
+						shows the carrier frequency at {(fc / 1000).toFixed(1)}{" "}
+						kHz and two sidebands at fc-fm (
+						{((fc - fm) / 1000).toFixed(1)} kHz) and fc+fm (
+						{((fc + fm) / 1000).toFixed(1)} kHz).
 					</p>
 				</div>
 			</section>
@@ -182,29 +379,123 @@ const AMModulation = () => {
 					</p>
 					<ol className="list-decimal pl-6 mb-2">
 						<li>
-							Rectification (taking the absolute value of the AM
-							signal)
+							Rectification (half-wave rectification to clip
+							negative portions)
 						</li>
 						<li>
 							Envelope extraction using a moving average window
 						</li>
 						<li>
-							DC component removal using a larger window moving
-							average
+							Low-pass filtering with a 3rd order digital filter
 						</li>
+						<li>DC component removal using adaptive estimation</li>
 					</ol>
 
 					<p className="mb-2">
 						Mathematically, we're extracting the envelope of:
 					</p>
-					<BlockMath math="s_{AM}(t) = A_c [1 + \mu \cdot m(t)] \cos(2\pi f_c t)" />
+					<BlockMath math="s_{AM}(t) = (A_c + A_m \cdot m(t)) \sin(2\pi f_c t)" />
 
 					<p className="mb-2">
 						Which gives us{" "}
-						<InlineMath math="A_c [1 + \mu \cdot m(t)]" />. After
+						<InlineMath math="A_c + A_m \cdot m(t)" />. After
 						removing the DC component <InlineMath math="A_c" />, we
-						get <InlineMath math="A_c \cdot \mu \cdot m(t)" />,
-						which is proportional to our original message.
+						get <InlineMath math="A_m \cdot m(t)" />, which is
+						proportional to our original message.
+					</p>
+				</div>
+			</section>
+
+			{/* Filter Configuration Section */}
+			<section className="mb-6 bg-yellow-50 p-4 rounded-lg shadow-sm border border-yellow-200">
+				<h3 className="text-xl font-bold mb-3 text-amber-700">
+					Demodulation Filter Configuration
+				</h3>
+
+				<div className="grid grid-cols-2 gap-4">
+					{/* Filter Cutoff Frequency */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							Cutoff Frequency: {filterCutoff.toFixed(1)} × fm ={" "}
+							{(filterCutoff * fm).toFixed(0)} Hz
+						</label>
+						<input
+							type="range"
+							min="0.5"
+							max="5.0"
+							step="0.1"
+							value={filterCutoff}
+							onChange={e =>
+								setFilterCutoff(parseFloat(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+						<div className="flex justify-between text-xs text-gray-500 mt-1">
+							<span>0.5 × fm</span>
+							<span>5.0 × fm</span>
+						</div>
+					</div>
+
+					{/* Filter Order */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							Filter Order: {filterOrder} (-{filterOrder * 6}{" "}
+							dB/octave)
+						</label>
+						<input
+							type="range"
+							min="1"
+							max="6"
+							step="1"
+							value={filterOrder}
+							onChange={e =>
+								setFilterOrder(parseInt(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+						<div className="flex justify-between text-xs text-gray-500 mt-1">
+							<span>1st order</span>
+							<span>6th order</span>
+						</div>
+					</div>
+				</div>
+
+				{/* Filter Info Display */}
+				<div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+						<div className="flex justify-between">
+							<span className="font-medium">Cutoff:</span>
+							<span className="font-bold">
+								{(filterCutoff * fm).toFixed(0)} Hz
+							</span>
+						</div>
+						<div className="flex justify-between">
+							<span className="font-medium">Order:</span>
+							<span className="font-bold">{filterOrder}</span>
+						</div>
+						<div className="flex justify-between">
+							<span className="font-medium">Roll-off:</span>
+							<span className="font-bold">
+								-{filterOrder * 6} dB/oct
+							</span>
+						</div>
+						<div className="flex justify-between">
+							<span className="font-medium">Type:</span>
+							<span className="font-bold">Digital LPF</span>
+						</div>
+					</div>
+				</div>
+
+				{/* Filter Guidelines */}
+				<div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+					<p className="text-blue-700">
+						<strong>Note:</strong> Higher cutoff frequencies
+						preserve more signal detail but allow more noise. Higher
+						order filters provide sharper roll-off but may introduce
+						more phase distortion. Recommended: 1.5-2.0 × fm cutoff
+						with 2nd-3rd order. Since this simulator doesn't have
+						any non-idealities you won't observe any phase
+						distortion/noise.
 					</p>
 				</div>
 			</section>
@@ -262,25 +553,21 @@ const AMModulation = () => {
 				/>
 
 				<div className="mt-4 bg-green-50 p-4 rounded-lg">
-					{" "}
 					<p>
-						{" "}
 						<strong>Observation:</strong> The dual y-axes allow us
 						to compare the original message (blue, left axis) and
 						the demodulated signal (green, right axis). The
 						demodulated signal closely follows the original message,
 						demonstrating successful recovery of the information.
-						Some distortion visible in the demodulated signal is due
-						to the 2nd order Butterworth filter used in our
-						implementation which has a gently rolloff. This
-						relatively gentle roll-off characteristic means the
-						filter attenuates frequencies outside the passband more
-						gradually than higher-order filters would, resulting in
-						some residual high-frequency components that cause
-						slight distortion in the recovered signal. The trade-off
-						is that the 2nd order filter provides a maximally flat
-						response in the passband with minimal phase distortion.{" "}
-					</p>{" "}
+						{modulationIndex > 1 && (
+							<span className="text-red-600">
+								{" "}
+								Additional distortion is present due to
+								overmodulation, which causes information loss
+								during demodulation.
+							</span>
+						)}
+					</p>
 				</div>
 			</section>
 
@@ -292,6 +579,43 @@ const AMModulation = () => {
 
 				<div className="mb-4">
 					<h3 className="text-xl font-semibold mb-2">
+						Amplitude Relationships
+					</h3>
+					<p className="mb-2">
+						The key relationships in AM modulation are:
+					</p>
+					<ul className="list-disc pl-6 mb-2">
+						<li>
+							Message amplitude:{" "}
+							<InlineMath math={`A_m = ${Am}`} />
+						</li>
+						<li>
+							Carrier amplitude:{" "}
+							<InlineMath math={`A_c = ${Ac}`} />
+						</li>
+						<li>
+							Modulation index:{" "}
+							<InlineMath
+								math={`\\mu = \\frac{A_m}{A_c} = ${modulationIndex.toFixed(
+									2
+								)}`}
+							/>
+						</li>
+						<li>
+							Maximum envelope amplitude:{" "}
+							<InlineMath
+								math={`A_c + A_m = ${(Ac + Am).toFixed(1)}`}
+							/>
+						</li>
+						<li>
+							Minimum envelope amplitude:{" "}
+							<InlineMath
+								math={`A_c - A_m = ${(Ac - Am).toFixed(1)}`}
+							/>
+						</li>
+					</ul>
+
+					<h3 className="text-xl font-semibold mb-2">
 						Bandwidth Considerations
 					</h3>
 					<p className="mb-2">
@@ -302,46 +626,47 @@ const AMModulation = () => {
 
 					<p className="mb-2">
 						With our message frequency{" "}
-						<InlineMath math="f_m = 500 Hz" />, the bandwidth is:
+						<InlineMath math={`f_m = ${fm} Hz`} />, the bandwidth
+						is:
 					</p>
-					<BlockMath math="BW = 2 \cdot 500 = 1000 Hz" />
-
-					<p className="mb-2">
-						This is significantly narrower than the FM bandwidth,
-						which is one of the advantages of AM in terms of
-						spectrum efficiency.
-					</p>
+					<BlockMath math={`BW = 2 \\cdot ${fm} = ${2 * fm} Hz`} />
 
 					<h3 className="text-xl font-semibold mb-2 mt-4">
 						Power Efficiency
 					</h3>
 					<p className="mb-2">
-						AM is less power-efficient than FM because:
+						The power efficiency of AM depends on the modulation
+						index:
+					</p>
+					<BlockMath
+						math={`\\eta = \\frac{\\mu^2}{2 + \\mu^2} = \\frac{${modulationIndex.toFixed(
+							2
+						)}^2}{2 + ${modulationIndex.toFixed(2)}^2} = ${(
+							(Math.pow(modulationIndex, 2) /
+								(2 + Math.pow(modulationIndex, 2))) *
+							100
+						).toFixed(1)}\\%`}
+					/>
+
+					<h3 className="text-xl font-semibold mb-2 mt-4">
+						Digital Filter Implementation
+					</h3>
+					<p className="mb-2">
+						Our demodulation uses cascaded first-order digital
+						filters:
 					</p>
 					<ul className="list-disc pl-6 mb-2">
 						<li>
-							The carrier component contains no information but
-							consumes most of the power
+							3rd order low-pass filter for envelope smoothing
 						</li>
 						<li>
-							Only the sidebands contain the actual message
-							information
+							Cutoff frequency at 1.5 × message frequency (750 Hz)
 						</li>
+						<li>Roll-off rate: 18 dB per octave</li>
 						<li>
-							With modulation index μ = 0.8, only about 33% of the
-							power is in the sidebands
+							Adaptive DC removal using moving mean estimation
 						</li>
 					</ul>
-
-					<h3 className="text-xl font-semibold mb-2 mt-4">
-						Noise Susceptibility
-					</h3>
-					<p className="mb-2">
-						AM is more susceptible to noise than FM because noise
-						typically affects amplitude more than frequency. This is
-						why FM is preferred for high-fidelity applications like
-						music broadcasting.
-					</p>
 				</div>
 			</section>
 		</div>

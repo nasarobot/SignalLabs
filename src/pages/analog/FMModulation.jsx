@@ -1,27 +1,47 @@
 // FMModulation.jsx
-import React from "react";
+import {React, useState} from "react";
 import { InlineMath, BlockMath } from "react-katex";
 import Plot from "react-plotly.js";
 import { computeFMModulation } from "../../lib/fmmodulation";
 import { computeFMDemodulation } from "../../lib/fmdemodulation";
 import { computeFFT } from "../../lib/computeFFT";
 
+
 const FMModulation = () => {
+	// Interactive state parameters
+	const [beta, setBeta] = useState(5);
+	const [fc, setFc] = useState(10000);
+	const [fm, setFm] = useState(500);
+	const [fftSize, setFftSize] = useState(8192);
+	const [bpLowCutoff, setBpLowCutoff] = useState(() => fc - 2 * fm); // e.g., default: fc - 2fm
+	const [bpHighCutoff, setBpHighCutoff] = useState(() => fc + 2 * fm); // e.g., default: fc + 2fm
+	const [filterCutoff, setFilterCutoff] = useState(3.0); // times fm
+	const [filterOrder, setFilterOrder] = useState(2);
+
+	// Fixed parameters
 	const fs = 500000;
 	const duration = 0.02;
-	const fc = 10000;
-	const fm = 500;
-	const beta = 5;
+
 	const { t, message, modulated } = computeFMModulation(
 		fs,
 		duration,
 		fc,
 		fm,
-		beta
+		beta,
 	);
-	const fftsize = 8192;
-	const { frequencies, magnitudes } = computeFFT(modulated, fs, fftsize);
-	const demodulated = computeFMDemodulation(modulated, fs, fc, fm, beta);
+	// const fftsize = 8192;
+	const { frequencies, magnitudes } = computeFFT(modulated, fs, fftSize);
+	const demodulated = computeFMDemodulation(
+		modulated,
+		fs,
+		fc,
+		fm,
+		beta,
+		bpLowCutoff,
+		bpHighCutoff,
+		filterCutoff,
+		filterOrder
+	);
 
 	return (
 		<div className="p-4 max-w-6xl mx-auto">
@@ -76,6 +96,79 @@ const FMModulation = () => {
 							<InlineMath math="k_f = 2\pi\beta f_m" />
 						</li>
 					</ul>
+				</div>
+			</section>
+
+			<section className="mb-6 bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
+				<h2 className="text-xl font-bold mb-3 text-indigo-600">
+					FM Modulation Parameters
+				</h2>
+				<div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-2">
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							β (Modulation Index): {beta.toFixed(2)}
+						</label>
+						<input
+							type="range"
+							min="0.1"
+							max="10"
+							step="0.1"
+							value={beta}
+							onChange={e => setBeta(parseFloat(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							fc: {(fc / 1000).toFixed(1)}kHz
+						</label>
+						<input
+							type="range"
+							min="5000"
+							max="20000"
+							step="500"
+							value={fc}
+							onChange={e => setFc(parseInt(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							fm: {fm}Hz
+						</label>
+						<input
+							type="range"
+							min="100"
+							max="2000"
+							step="50"
+							value={fm}
+							onChange={e => setFm(parseInt(e.target.value))}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-xs font-semibold mb-1 text-gray-700">
+							FFT Size
+						</label>
+						<select
+							value={fftSize}
+							onChange={e => setFftSize(parseInt(e.target.value))}
+							className="w-full text-xs border rounded">
+							<option value={1024}>1024</option>
+							<option value={2048}>2048</option>
+							<option value={4096}>4096</option>
+							<option value={8192}>8192</option>
+							<option value={16384}>16384</option>
+						</select>
+					</div>
+					<div className="flex flex-col justify-between bg-white p-3 rounded-lg shadow-sm">
+						<div className="text-xs text-gray-600 font-medium">
+							BW (Carson): {(2 * (beta + 1) * fm).toFixed(0)} Hz
+						</div>
+						<div className="text-xs text-gray-600 font-medium">
+							Δf: {(beta * fm).toFixed(0)} Hz
+						</div>
+					</div>
 				</div>
 			</section>
 
@@ -147,7 +240,7 @@ const FMModulation = () => {
 						plot_bgcolor: "#f9fafb",
 						xaxis: {
 							title: "Frequency (Hz)",
-							range: [0, 2*fc],
+							range: [0, 2 * fc],
 						},
 						yaxis: {
 							title: "Magnitude",
@@ -202,6 +295,94 @@ const FMModulation = () => {
 							Low-pass filtering to smooth the recovered signal
 						</li>
 					</ol>
+				</div>
+			</section>
+
+			<section className="mb-6 bg-yellow-50 p-4 rounded-lg shadow-sm border border-yellow-200">
+				<h3 className="text-xl font-bold mb-3 text-amber-700">
+					Demodulation Filter Configuration
+				</h3>
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+					{/* Bandpass Low Cutoff */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							BP Low Cutoff: {bpLowCutoff} Hz
+						</label>
+						<input
+							type="range"
+							min={Math.max(0, fc - 5 * fm)}
+							max={fc}
+							step={100}
+							value={bpLowCutoff}
+							onChange={e =>
+								setBpLowCutoff(parseInt(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					{/* Bandpass High Cutoff */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							BP High Cutoff: {bpHighCutoff} Hz
+						</label>
+						<input
+							type="range"
+							min={fc}
+							max={fc + 5 * fm}
+							step={100}
+							value={bpHighCutoff}
+							onChange={e =>
+								setBpHighCutoff(parseInt(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					{/* Low-pass Cutoff */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							Low-pass Cutoff: {filterCutoff} × fm ={" "}
+							{(filterCutoff * fm).toFixed(0)} Hz
+						</label>
+						<input
+							type="range"
+							min="1"
+							max="5"
+							step="0.1"
+							value={filterCutoff}
+							onChange={e =>
+								setFilterCutoff(parseFloat(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+					{/* Filter Order */}
+					<div className="bg-white p-3 rounded-lg shadow-sm">
+						<label className="block text-sm font-semibold mb-2 text-gray-700">
+							LPF Order: {filterOrder}
+						</label>
+						<input
+							type="range"
+							min="1"
+							max="6"
+							step="1"
+							value={filterOrder}
+							onChange={e =>
+								setFilterOrder(parseInt(e.target.value))
+							}
+							className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+						/>
+					</div>
+				</div>
+				{/* Optionally, a note or calculated summary */}
+				<div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+					<p className="text-blue-700">
+						<strong>Tip:</strong> The bandpass filter selects the
+						range around your carrier frequency ({fc} Hz). Adjust
+						its lower and upper cutoffs to include your FM signal
+						while rejecting out-of-band noise. The low-pass filter
+						controls smoothing and noise rejection of the recovered
+						message.
+					</p>
 				</div>
 			</section>
 
